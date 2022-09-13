@@ -552,12 +552,6 @@ async function migrateGuild(guild: IGuild) {
 	}
 }
 
-process.on('exit', () => {
-	fs.writeFileSync('./data/idmap.json', JSON.stringify(mapping, null, 4));
-	fs.writeFileSync('./data/missing.json', JSON.stringify(missing, null, 4));
-	console.log('Written id map to disk');
-});
-
 function exitHandler() {
 	fs.writeFileSync('./data/idmap.json', JSON.stringify(mapping, null, 4));
 	fs.writeFileSync('./data/missing.json', JSON.stringify(missing, null, 4));
