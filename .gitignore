@@ -1,0 +1,8 @@
+/logs/
+/node_modules/
+/images/
+/data/*
+!/data/idmap.empty.json
+/.idea
+.env*
+!.env.example
