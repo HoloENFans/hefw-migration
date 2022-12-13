@@ -6,7 +6,9 @@ import markdown from 'remark-parse';
 import slate, { InputNodeTypes } from 'remark-slate';
 import FormData from 'form-data';
 import { Readable } from 'node:stream';
-import { Guild, Media, Project } from './payload-types';
+import {
+	Flag, Guild, Media, Project,
+} from './payload-types';
 import * as PayloadTypes from './payload-types';
 
 const {
@@ -153,6 +155,19 @@ interface PayloadPostResponse<T> {
 	doc: T;
 }
 
+export default interface PayloadResponse<T = any> {
+	docs: T[];
+	totalDocs: number;
+	limit: number;
+	totalPages: number;
+	page: number;
+	pagingCounter: number;
+	hasPrevPage: boolean;
+	hasNextPage: boolean;
+	prevPage: number | null;
+	nextPage: number | null;
+}
+
 const guilds: IGuild[] = JSON.parse(fs.readFileSync('./data/guilds.json').toString());
 const projects: IProject[] = JSON.parse(fs.readFileSync('./data/projects.json').toString());
 const submissions: ISubmission[] = JSON.parse(fs.readFileSync('./data/submissions.json').toString());
@@ -229,6 +244,7 @@ async function migrateSubmission(submission: ISubmission) {
 		project: mapping.projects[submission.project],
 		type: submission.type,
 		author: submission.author ?? 'Anonymous',
+		devprops: [],
 
 		_status: 'published',
 	};
@@ -368,10 +384,12 @@ async function migrateProject(project: IProject) {
 		slug: project._id!.toString(),
 		status: project.status,
 		title: project.title,
-		links: project.links?.map((link) => ({ name: link.name, url: link.link })),
+		links: project.links?.map((link) => ({ name: link.name, url: link.link })) ?? [],
+		media: [],
 		description: description.result! as any,
 		date: new Date(Number.parseInt(project.date.$date.$numberLong, 10)).toISOString(),
 		devprops: [],
+		flags: [],
 
 		_status: 'published',
 	};
@@ -383,6 +401,29 @@ async function migrateProject(project: IProject) {
 		newProject.devprops!.push({ key: 'credits', value: JSON.stringify(project.credits) });
 	}
 	if (project.flags) {
+		const existingFlags = await axiosInstance.get<PayloadResponse<Flag>>('/api/flags?limit=200').catch(console.error);
+
+		if (existingFlags) {
+			const tasks = project.flags.map(async (flagCode) => {
+				const existingFlag = existingFlags.data.docs.find((flag) => flag.code === flagCode);
+
+				if (!existingFlag) {
+					const newFlag = await axiosInstance.post<PayloadPostResponse<Flag>>('/api/flags', {
+						code: flagCode,
+						name: flagCode,
+					}).catch(console.error);
+
+					if (newFlag) {
+						newProject.flags!.push(newFlag.data.doc.id as any);
+					}
+				} else {
+					newProject.flags!.push(existingFlag.id as any);
+				}
+			});
+
+			await Promise.all(tasks);
+		}
+
 		newProject.devprops!.push({ key: 'flags', value: JSON.stringify(project.flags) });
 	}
 
